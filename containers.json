@@ -1,0 +1,9 @@
+{
+    "flask": {
+        "image": ":news-service.flask-container.1",
+        "ports": {
+            "5000": "HTTP"
+        }
+    }
+}
+
