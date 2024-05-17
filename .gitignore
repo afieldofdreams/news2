@@ -1,5 +1,5 @@
-_pycahce_/
-_pycache_/*
+__pycahce__/
+__pycache__/*
 /env
 /flask_session
 __pycache__/
