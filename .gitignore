@@ -2,3 +2,4 @@ _pycahce_/
 _pycache_/*
 /env
 /flask_session
+__pycache__/
