@@ -14,68 +14,133 @@ html_form = '''
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NEWS2 Score Calculation Form</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
-        body { font-family: Arial, sans-serif; background: #f4f4f9; }
-        .container { width: 80%; max-width: 600px; margin: 20px auto; background: #fff; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        label { display: block; margin-top: 20px; }
-        input[type="number"], select { width: 95%; padding: 8px; margin-top: 5px; }
-        input[type="checkbox"] { margin-top: 5px; }
-        .checkbox-label { display: flex; align-items: center; }
-        .checkbox-text { margin-left: 10px; }
-        .button { width: auto; padding: 10px 20px; background-color: #4CAF50; color: white; border: none; cursor: pointer; margin-top: 20px; }
-        .button:hover { background-color: #45a049; }
-        .error { color: red; margin-top: 5px; }
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .form-container {
+            width: 50%;
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input[type="text"],
+        .form-group select {
+            width: calc(100% - 24px);
+            padding: 8px;
+            margin-right: 24px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .form-group input[type="checkbox"] {
+            margin-right: 5px;
+        }
+        .form-group .checkbox-label {
+            display: flex;
+            align-items: center;
+        }
+        .form-group .info-icon {
+            margin-left: 5px;
+            color: #007bff;
+            cursor: pointer;
+        }
+        .form-group .info-icon:hover {
+            color: #0056b3;
+        }
+        .submit-btn {
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .submit-btn:hover {
+            background-color: #218838;
+        }
+        .donation-message {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 14px;
+            color: #555;
+        }
+        .donation-message a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .donation-message a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2>NEWS2 Score Calculation Form</h2>
-        <form id="newsForm" action="/calculate" method="post">
-            <div>
-                <label for="respiratoryRate">Respiratory Rate (RR):</label>
-                <input type="number" id="respiratoryRate" name="respiratoryRate" required>
-            </div>
-            <div class="checkbox-label">
-                <label for="hypercapnic" class="checkbox-text">Hypercapnic Respiratory Failure (check if yes)</label>
-                <input type="checkbox" id="hypercapnic" name="hypercapnic">
-            </div>
-            <div>
-                <label for="oxygenSaturation">Oxygen Saturation (SpO2):</label>
-                <input type="number" id="oxygenSaturation" name="oxygenSaturation" required>
-            </div>
-            <div class="checkbox-label">
-                <label for="supplementalOxygen" class="checkbox-text">On supplemental oxygen (check for yes)</label>
-                <input type="checkbox" id="supplementalOxygen" name="supplementalOxygen">
-            </div>
-            <div>
-                <label for="systolicBP">Systolic Blood Pressure (BP):</label>
-                <input type="number" id="systolicBP" name="systolicBP" required>
-            </div>
-            <div>
-                <label for="pulseRate">Pulse Rate (PR):</label>
-                <input type="number" id="pulseRate" name="pulseRate" required>
-            </div>
-            <div>
-                <label for="temperature">Temperature:</label>
-                <input type="number" step="0.1" id="temperature" name="temperature" required>
-            </div>
-            <div>
-                <label for="consciousness">Level of Consciousness:</label>
-                <select id="consciousness" name="consciousness" required>
-                    <option value="alert">Alert</option>
-                    <option value="voice">Response to Voice</option>
-                    <option value="pain">Response to Pain</option>
-                    <option value="unresponsive">Unresponsive</option>
-                </select>
-            </div>
-            <div>
-                <button type="submit" class="button">Submit Form</button>
-            </div>
-            <div id="formErrors" class="error"></div>
-        </form>
+
+<div class="form-container">
+    <h2>NEWS2 Score Calculation Form</h2>
+    <form>
+        <div class="form-group">
+            <label for="rr">Respiratory Rate (RR):</label>
+            <input type="text" id="rr" name="rr">
+            <i class="fas fa-info-circle info-icon" title="Normal range: 12-20 breaths per minute"></i>
+        </div>
+        <div class="form-group checkbox-label">
+            <input type="checkbox" id="hypercapnic_rf" name="hypercapnic_rf">
+            <label for="hypercapnic_rf">Hypercapnic Respiratory Failure (check if yes)</label>
+        </div>
+        <div class="form-group">
+            <label for="spo2">Oxygen Saturation (SpO2):</label>
+            <input type="text" id="spo2" name="spo2">
+            <i class="fas fa-info-circle info-icon" title="Normal range: 95-100%"></i>
+        </div>
+        <div class="form-group checkbox-label">
+            <input type="checkbox" id="supplemental_oxygen" name="supplemental_oxygen">
+            <label for="supplemental_oxygen">On supplemental oxygen (check if yes)</label>
+        </div>
+        <div class="form-group">
+            <label for="bp">Systolic Blood Pressure (BP):</label>
+            <input type="text" id="bp" name="bp">
+            <i class="fas fa-info-circle info-icon" title="Normal range: 90-120 mmHg"></i>
+        </div>
+        <div class="form-group">
+            <label for="pr">Pulse Rate (PR):</label>
+            <input type="text" id="pr" name="pr">
+            <i class="fas fa-info-circle info-icon" title="Normal range: 60-100 bpm"></i>
+        </div>
+        <div class="form-group">
+            <label for="temperature">Temperature (°C):</label>
+            <input type="text" id="temperature" name="temperature">
+            <i class="fas fa-info-circle info-icon" title="Normal range: 36.1-37.2°C"></i>
+        </div>
+        <div class="form-group">
+            <label for="consciousness">Level of Consciousness:</label>
+            <select id="consciousness" name="consciousness">
+                <option value="alert">Alert</option>
+                <option value="voice">Voice</option>
+                <option value="pain">Pain</option>
+                <option value="unresponsive">Unresponsive</option>
+            </select>
+        </div>
+        <button type="submit" class="submit-btn">Submit Form</button>
+    </form>
+    <div class="donation-message">
+        Like what you see? I do this for free so all donations are welcome - <a href="https://checkout.revolut.com/pay/9a1c17c9-ce88-4fad-9ed9-174474c40582" target="_blank">Donate here</a>
     </div>
+</div>
+
 </body>
 </html>
+
 '''
 
 
