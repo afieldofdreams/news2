@@ -237,6 +237,56 @@ NHS_BASE_STYLES = '''
     }
     .nhsuk-button--secondary:hover { background: var(--nhsuk-grey-4); }
 
+    /* Per-field 'Next' buttons — subtle ghost style so they don't compete
+       with the main Calculate button at the bottom. */
+    .next-step {
+        display: inline-block;
+        margin-top: 12px;
+        padding: 10px 18px;
+        font-family: inherit;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--nhsuk-blue);
+        background: var(--nhsuk-white);
+        border: 2px solid var(--nhsuk-blue);
+        border-radius: 0;
+        cursor: pointer;
+        min-height: 40px;
+    }
+    .next-step:hover {
+        background: var(--nhsuk-blue);
+        color: var(--nhsuk-white);
+    }
+    .next-step:focus {
+        outline: 4px solid var(--nhsuk-focus);
+        outline-offset: 0;
+        background: var(--nhsuk-focus);
+        color: var(--nhsuk-black);
+    }
+
+    /* Top-of-page nav link (back to crox.io) */
+    .top-nav {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 12px 16px 0;
+        font-size: 15px;
+    }
+    .top-nav a { color: var(--nhsuk-blue); }
+
+    /* About-me block */
+    .about-me {
+        background: var(--nhsuk-grey-5);
+        border-left: 4px solid var(--nhsuk-blue);
+        padding: 16px 20px;
+        margin: 32px 0;
+        font-size: 15px;
+        line-height: 1.5;
+    }
+    .about-me h3 {
+        font-size: 18px;
+        margin: 0 0 8px;
+    }
+
     .nhsuk-error-summary {
         border: 4px solid var(--nhsuk-warm-red);
         padding: 16px;
@@ -288,6 +338,10 @@ HTML_FORM = '''
         </div>
     </header>
 
+    <nav class="top-nav" aria-label="Site navigation">
+        <a href="https://crox.io" rel="noopener">&larr; crox.io</a>
+    </nav>
+
     <main class="nhsuk-width-container" id="main-content">
         <div class="nhsuk-error-summary" role="alert" aria-labelledby="disclaimer-title">
             <h2 class="nhsuk-error-summary__title" id="disclaimer-title">Not an NHS service. Not a medical device.</h2>
@@ -324,6 +378,7 @@ HTML_FORM = '''
                 <input class="nhsuk-input nhsuk-input--width-5" id="respiratoryRate" name="respiratoryRate"
                        type="number" min="0" max="60" inputmode="numeric"
                        value="{{ values.respiratoryRate or '' }}">
+                <button type="button" class="next-step" data-next="oxygenSaturation">Next &rarr;</button>
             </div>
 
             <div class="nhsuk-form-group {% if errors.oxygenSaturation %}nhsuk-form-group--error{% endif %}">
@@ -333,6 +388,7 @@ HTML_FORM = '''
                 <input class="nhsuk-input nhsuk-input--width-5" id="oxygenSaturation" name="oxygenSaturation"
                        type="number" min="0" max="100" inputmode="numeric"
                        value="{{ values.oxygenSaturation or '' }}">
+                <button type="button" class="next-step" data-next="supplementalOxygen">Next &rarr;</button>
             </div>
 
             <div class="nhsuk-form-group">
@@ -350,6 +406,7 @@ HTML_FORM = '''
                         Use SpO<sub>2</sub> Scale 2 (hypercapnic respiratory failure, target 88&ndash;92%)
                     </label>
                 </div>
+                <button type="button" class="next-step" data-next="systolicBP">Next &rarr;</button>
             </div>
 
             <div class="nhsuk-form-group {% if errors.systolicBP %}nhsuk-form-group--error{% endif %}">
@@ -359,6 +416,7 @@ HTML_FORM = '''
                 <input class="nhsuk-input nhsuk-input--width-5" id="systolicBP" name="systolicBP"
                        type="number" min="40" max="260" inputmode="numeric"
                        value="{{ values.systolicBP or '' }}">
+                <button type="button" class="next-step" data-next="pulseRate">Next &rarr;</button>
             </div>
 
             <div class="nhsuk-form-group {% if errors.pulseRate %}nhsuk-form-group--error{% endif %}">
@@ -368,6 +426,7 @@ HTML_FORM = '''
                 <input class="nhsuk-input nhsuk-input--width-5" id="pulseRate" name="pulseRate"
                        type="number" min="20" max="220" inputmode="numeric"
                        value="{{ values.pulseRate or '' }}">
+                <button type="button" class="next-step" data-next="temperature">Next &rarr;</button>
             </div>
 
             <div class="nhsuk-form-group {% if errors.temperature %}nhsuk-form-group--error{% endif %}">
@@ -377,6 +436,7 @@ HTML_FORM = '''
                 <input class="nhsuk-input nhsuk-input--width-5" id="temperature" name="temperature"
                        type="number" min="25" max="45" step="0.1" inputmode="decimal"
                        value="{{ values.temperature or '' }}">
+                <button type="button" class="next-step" data-next="consciousness">Next &rarr;</button>
             </div>
 
             <div class="nhsuk-form-group">
@@ -394,6 +454,22 @@ HTML_FORM = '''
             <button class="nhsuk-button" type="submit">Calculate score</button>
         </form>
 
+        <script>
+            // Per-field 'Next' buttons: scroll to and focus the target field.
+            // Mobile-friendly — pops the correct keyboard via the input's inputmode.
+            document.querySelectorAll('.next-step').forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    var targetId = btn.getAttribute('data-next');
+                    var target = document.getElementById(targetId);
+                    if (!target) return;
+                    target.scrollIntoView({behavior: 'smooth', block: 'center'});
+                    // Slight delay so scroll completes before focus pops the keyboard.
+                    setTimeout(function() { target.focus(); }, 350);
+                });
+            });
+        </script>
+
         <h2 class="nhsuk-heading-l">About this tool</h2>
         <p>NEWS2 is an aggregate score derived from six routine physiological measurements,
         described in the Royal College of Physicians' 2017 chart (linked above). This page
@@ -402,6 +478,13 @@ HTML_FORM = '''
         <p>If you find this useful as a reference, contributions toward hosting costs are welcome &mdash;
         <a href="https://checkout.revolut.com/pay/9a1c17c9-ce88-4fad-9ed9-174474c40582"
            rel="noopener noreferrer" target="_blank">contribute via Revolut</a>.</p>
+
+        <aside class="about-me" aria-label="About the author">
+            <h3>About the author</h3>
+            <p>Built by Adam Field, a commercial pilot turned product builder, as a
+            personal reference and small experiment in clean clinical-style form design.
+            More of my work at <a href="https://crox.io" rel="noopener">crox.io</a>.</p>
+        </aside>
     </main>
 
     <footer class="nhsuk-footer">
@@ -472,6 +555,10 @@ HTML_RESULTS = '''
             <span class="nhsuk-header__service">NEWS2 Reference Calculator</span>
         </div>
     </header>
+
+    <nav class="top-nav" aria-label="Site navigation">
+        <a href="https://crox.io" rel="noopener">&larr; crox.io</a>
+    </nav>
 
     <main class="nhsuk-width-container" id="main-content">
         <div class="nhsuk-error-summary" role="alert" aria-labelledby="disclaimer-title">
