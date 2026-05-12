@@ -11,9 +11,10 @@ Session(app)
 
 NHS_BASE_STYLES = '''
     :root {
-        --nhsuk-blue: #005eb8;
-        --nhsuk-dark-blue: #003087;
-        --nhsuk-bright-blue: #0072ce;
+        /* Deliberately not NHS blue. This is an independent reference tool. */
+        --nhsuk-blue: #0f5a64;
+        --nhsuk-dark-blue: #073f47;
+        --nhsuk-bright-blue: #157684;
         --nhsuk-black: #212b32;
         --nhsuk-grey-1: #4c6272;
         --nhsuk-grey-3: #aeb7bd;
@@ -207,10 +208,10 @@ NHS_BASE_STYLES = '''
         font-weight: 600;
         line-height: 1.4;
         padding: 14px 20px 12px;
-        background: var(--nhsuk-green);
+        background: var(--nhsuk-bright-blue);
         color: var(--nhsuk-white);
         border: 2px solid transparent;
-        border-bottom: 4px solid #00401e;
+        border-bottom: 4px solid var(--nhsuk-dark-blue);
         border-radius: 0;
         cursor: pointer;
         text-align: center;
@@ -221,7 +222,7 @@ NHS_BASE_STYLES = '''
         text-decoration: none;
         display: inline-block;
     }
-    .nhsuk-button:hover { background: #00662f; }
+    .nhsuk-button:hover { background: var(--nhsuk-blue); }
     .nhsuk-button:focus {
         outline: 4px solid var(--nhsuk-focus);
         outline-offset: 0;
@@ -277,23 +278,32 @@ HTML_FORM = '''
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NEWS2 score calculator</title>
+    <title>NEWS2 Reference Calculator</title>
     <style>{{ base_styles|safe }}</style>
 </head>
 <body>
     <header class="nhsuk-header" role="banner">
         <div class="nhsuk-header__inner">
-            <span class="nhsuk-header__logo">NHS</span>
-            <span class="nhsuk-header__service">NEWS2 score calculator</span>
+            <span class="nhsuk-header__service">NEWS2 Reference Calculator</span>
         </div>
     </header>
 
     <main class="nhsuk-width-container" id="main-content">
-        <h1 class="nhsuk-heading-xl">Calculate a NEWS2 score</h1>
-        <p>Enter the patient's observations below. All fields are required.
-        This tool follows the
+        <div class="nhsuk-error-summary" role="alert" aria-labelledby="disclaimer-title">
+            <h2 class="nhsuk-error-summary__title" id="disclaimer-title">Not an NHS service. Not a medical device.</h2>
+            <p>This is an independent educational reference, not affiliated with, endorsed by,
+            or connected to the NHS, the Royal College of Physicians, or any healthcare organisation.
+            It is not a medical device, has not been validated for clinical use, and must not be used
+            to inform patient care or clinical decision-making. Always use officially approved tools
+            and clinical judgement when treating patients.</p>
+        </div>
+
+        <h1 class="nhsuk-heading-xl">NEWS2 Reference Calculator</h1>
+        <p>Enter observations below to compute the NEWS2 aggregate score using the algorithm
+        published in the
         <a href="https://www.rcplondon.ac.uk/projects/outputs/national-early-warning-score-news-2"
-           rel="noopener noreferrer" target="_blank">Royal College of Physicians NEWS2 chart</a>.</p>
+           rel="noopener noreferrer" target="_blank">Royal College of Physicians NEWS2 chart</a>
+        (RCP, 2017). All fields are required.</p>
 
         {% if errors %}
         <div class="nhsuk-error-summary" aria-labelledby="error-summary-title" role="alert" tabindex="-1">
@@ -385,19 +395,19 @@ HTML_FORM = '''
         </form>
 
         <h2 class="nhsuk-heading-l">About this tool</h2>
-        <p>NEWS2 is an aggregate score derived from six routine physiological measurements.
-        It is intended to support clinical judgement, not replace it. Always escalate based on
-        local policy and the full clinical picture.</p>
-        <p>If you find this calculator useful, donations are welcome &mdash;
+        <p>NEWS2 is an aggregate score derived from six routine physiological measurements,
+        described in the Royal College of Physicians' 2017 chart (linked above). This page
+        implements the published algorithm as a reference and learning aid only. It is not a
+        clinical tool and must not be used to inform care.</p>
+        <p>If you find this useful as a reference, contributions toward hosting costs are welcome &mdash;
         <a href="https://checkout.revolut.com/pay/9a1c17c9-ce88-4fad-9ed9-174474c40582"
-           rel="noopener noreferrer" target="_blank">donate via Revolut</a>.</p>
+           rel="noopener noreferrer" target="_blank">contribute via Revolut</a>.</p>
     </main>
 
     <footer class="nhsuk-footer">
         <div class="nhsuk-footer__inner">
-            Built following the
-            <a href="https://service-manual.nhs.uk/" rel="noopener noreferrer" target="_blank">NHS digital service manual</a>.
-            Not a medical device. For decision support only.
+            Independent educational reference, not affiliated with the NHS or any healthcare
+            organisation. Not a medical device. Not for clinical decision support.
         </div>
     </footer>
 </body>
@@ -411,7 +421,7 @@ HTML_RESULTS = '''
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NEWS2 score result</title>
+    <title>NEWS2 Reference Calculator — result</title>
     <style>
         {{ base_styles|safe }}
         .nhsuk-care-card {
@@ -459,22 +469,29 @@ HTML_RESULTS = '''
 <body>
     <header class="nhsuk-header" role="banner">
         <div class="nhsuk-header__inner">
-            <span class="nhsuk-header__logo">NHS</span>
-            <span class="nhsuk-header__service">NEWS2 score calculator</span>
+            <span class="nhsuk-header__service">NEWS2 Reference Calculator</span>
         </div>
     </header>
 
     <main class="nhsuk-width-container" id="main-content">
+        <div class="nhsuk-error-summary" role="alert" aria-labelledby="disclaimer-title">
+            <h2 class="nhsuk-error-summary__title" id="disclaimer-title">Not an NHS service. Not a medical device.</h2>
+            <p>This is an independent educational reference, not affiliated with, endorsed by,
+            or connected to the NHS, the Royal College of Physicians, or any healthcare organisation.
+            It is not a medical device, has not been validated for clinical use, and must not be used
+            to inform patient care or clinical decision-making.</p>
+        </div>
+
         <h1 class="nhsuk-heading-xl">NEWS2 result</h1>
 
-        <div class="nhsuk-care-card" role="region" aria-label="Clinical risk">
+        <div class="nhsuk-care-card" role="region" aria-label="Reference output">
             <p class="nhsuk-care-card__heading">{{ band_label }}</p>
             <p class="nhsuk-score-display">{{ score }}</p>
             <p><strong>Clinical response:</strong> {{ response }}</p>
             <p><strong>Monitoring:</strong> {{ monitoring_time }}</p>
             {% if has_level_3 %}
-            <p><strong>Note:</strong> At least one individual parameter scored 3. Per NEWS2 guidance,
-            urgent clinician review is triggered even when the aggregate score is low.</p>
+            <p><strong>Note:</strong> At least one individual parameter scored 3. Per the published
+            NEWS2 algorithm, this flag exists in the chart even when the aggregate score is low.</p>
             {% endif %}
         </div>
 
@@ -496,9 +513,8 @@ HTML_RESULTS = '''
 
     <footer class="nhsuk-footer">
         <div class="nhsuk-footer__inner">
-            Built following the
-            <a href="https://service-manual.nhs.uk/" rel="noopener noreferrer" target="_blank">NHS digital service manual</a>.
-            Not a medical device. For decision support only.
+            Independent educational reference, not affiliated with the NHS or any healthcare
+            organisation. Not a medical device. Not for clinical decision support.
         </div>
     </footer>
 </body>
