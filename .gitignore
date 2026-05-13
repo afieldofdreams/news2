@@ -7,3 +7,6 @@ analytics.db
 analytics.db-wal
 analytics.db-shm
 *.sqlite
+.env
+.env.local
+.env.*.local
