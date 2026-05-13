@@ -131,34 +131,6 @@ NHS_BASE_STYLES = '''
         box-shadow: 0 -2px var(--nhsuk-focus), 0 4px var(--nhsuk-black);
     }
 
-    .nhsuk-header {
-        background: var(--nhsuk-blue);
-        color: var(--nhsuk-white);
-        padding: 16px 0;
-        border-bottom: 4px solid var(--nhsuk-dark-blue);
-    }
-    .nhsuk-header__inner {
-        max-width: 960px;
-        margin: 0 auto;
-        padding: 0 16px;
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 12px;
-    }
-    .nhsuk-header__logo {
-        background: var(--nhsuk-white);
-        color: var(--nhsuk-blue);
-        font-weight: 700;
-        padding: 6px 10px;
-        font-size: 20px;
-        letter-spacing: 0.5px;
-    }
-    .nhsuk-header__service {
-        font-size: 18px;
-        font-weight: 600;
-    }
-
     .nhsuk-width-container {
         max-width: 720px;
         margin: 0 auto;
@@ -167,7 +139,6 @@ NHS_BASE_STYLES = '''
     @media (max-width: 480px) {
         h1.nhsuk-heading-xl { font-size: 26px; }
         h2.nhsuk-heading-l { font-size: 20px; }
-        .nhsuk-header__service { font-size: 16px; }
     }
 
     h1.nhsuk-heading-xl {
@@ -313,42 +284,6 @@ NHS_BASE_STYLES = '''
         border-bottom-color: var(--nhsuk-grey-3);
     }
     .nhsuk-button--secondary:hover { background: var(--nhsuk-grey-4); }
-
-    /* Per-field 'Next' buttons — subtle ghost style so they don't compete
-       with the main Calculate button at the bottom. */
-    .next-step {
-        display: inline-block;
-        margin-top: 12px;
-        padding: 10px 18px;
-        font-family: inherit;
-        font-size: 16px;
-        font-weight: 600;
-        color: var(--nhsuk-blue);
-        background: var(--nhsuk-white);
-        border: 2px solid var(--nhsuk-blue);
-        border-radius: 0;
-        cursor: pointer;
-        min-height: 40px;
-    }
-    .next-step:hover {
-        background: var(--nhsuk-blue);
-        color: var(--nhsuk-white);
-    }
-    .next-step:focus {
-        outline: 4px solid var(--nhsuk-focus);
-        outline-offset: 0;
-        background: var(--nhsuk-focus);
-        color: var(--nhsuk-black);
-    }
-
-    /* Top-of-page nav link (back to crox.io) */
-    .top-nav {
-        max-width: 720px;
-        margin: 0 auto;
-        padding: 12px 16px 0;
-        font-size: 15px;
-    }
-    .top-nav a { color: var(--nhsuk-blue); }
 
     /* About-me block */
     .about-me {
@@ -497,16 +432,6 @@ HTML_FORM = '''
     <style>{{ base_styles|safe }}</style>
 </head>
 <body>
-    <header class="nhsuk-header" role="banner">
-        <div class="nhsuk-header__inner">
-            <span class="nhsuk-header__service">NEWS2 Reference Calculator</span>
-        </div>
-    </header>
-
-    <nav class="top-nav" aria-label="Site navigation">
-        <a href="https://crox.io" rel="noopener">&larr; crox.io</a>
-    </nav>
-
     <main class="nhsuk-width-container" id="main-content">
         <div class="disclaimer" role="note" aria-labelledby="disclaimer-title">
             <button type="button" class="disclaimer__close" aria-label="Dismiss disclaimer">&times;</button>
@@ -538,9 +463,9 @@ HTML_FORM = '''
                 <div class="nhsuk-hint">Typical range 12 to 20 breaths per minute.</div>
                 {% if errors.respiratoryRate %}<p class="nhsuk-error-message">{{ errors.respiratoryRate }}</p>{% endif %}
                 <input class="nhsuk-input nhsuk-input--width-5" id="respiratoryRate" name="respiratoryRate"
-                       type="number" min="0" max="60" inputmode="numeric"
+                       type="number" min="0" max="60" inputmode="numeric" pattern="[0-9]*"
+                       autocomplete="off"
                        value="{{ values.respiratoryRate or '' }}">
-                <button type="button" class="next-step" data-next="oxygenSaturation">Next &rarr;</button>
             </div>
 
             <div class="nhsuk-form-group {% if errors.oxygenSaturation %}nhsuk-form-group--error{% endif %}">
@@ -548,9 +473,9 @@ HTML_FORM = '''
                 <div class="nhsuk-hint">Whole number, 0 to 100.</div>
                 {% if errors.oxygenSaturation %}<p class="nhsuk-error-message">{{ errors.oxygenSaturation }}</p>{% endif %}
                 <input class="nhsuk-input nhsuk-input--width-5" id="oxygenSaturation" name="oxygenSaturation"
-                       type="number" min="0" max="100" inputmode="numeric"
+                       type="number" min="0" max="100" inputmode="numeric" pattern="[0-9]*"
+                       autocomplete="off"
                        value="{{ values.oxygenSaturation or '' }}">
-                <button type="button" class="next-step" data-next="supplementalOxygen">Next &rarr;</button>
             </div>
 
             <div class="nhsuk-form-group">
@@ -568,7 +493,6 @@ HTML_FORM = '''
                         Use SpO<sub>2</sub> Scale 2 (hypercapnic respiratory failure, target 88&ndash;92%)
                     </label>
                 </div>
-                <button type="button" class="next-step" data-next="systolicBP">Next &rarr;</button>
             </div>
 
             <div class="nhsuk-form-group {% if errors.systolicBP %}nhsuk-form-group--error{% endif %}">
@@ -576,9 +500,9 @@ HTML_FORM = '''
                 <div class="nhsuk-hint">Whole number, 40 to 260.</div>
                 {% if errors.systolicBP %}<p class="nhsuk-error-message">{{ errors.systolicBP }}</p>{% endif %}
                 <input class="nhsuk-input nhsuk-input--width-5" id="systolicBP" name="systolicBP"
-                       type="number" min="40" max="260" inputmode="numeric"
+                       type="number" min="40" max="260" inputmode="numeric" pattern="[0-9]*"
+                       autocomplete="off"
                        value="{{ values.systolicBP or '' }}">
-                <button type="button" class="next-step" data-next="pulseRate">Next &rarr;</button>
             </div>
 
             <div class="nhsuk-form-group {% if errors.pulseRate %}nhsuk-form-group--error{% endif %}">
@@ -586,9 +510,9 @@ HTML_FORM = '''
                 <div class="nhsuk-hint">Whole number, 20 to 220.</div>
                 {% if errors.pulseRate %}<p class="nhsuk-error-message">{{ errors.pulseRate }}</p>{% endif %}
                 <input class="nhsuk-input nhsuk-input--width-5" id="pulseRate" name="pulseRate"
-                       type="number" min="20" max="220" inputmode="numeric"
+                       type="number" min="20" max="220" inputmode="numeric" pattern="[0-9]*"
+                       autocomplete="off"
                        value="{{ values.pulseRate or '' }}">
-                <button type="button" class="next-step" data-next="temperature">Next &rarr;</button>
             </div>
 
             <div class="nhsuk-form-group {% if errors.temperature %}nhsuk-form-group--error{% endif %}">
@@ -597,8 +521,8 @@ HTML_FORM = '''
                 {% if errors.temperature %}<p class="nhsuk-error-message">{{ errors.temperature }}</p>{% endif %}
                 <input class="nhsuk-input nhsuk-input--width-5" id="temperature" name="temperature"
                        type="number" min="25" max="45" step="0.1" inputmode="decimal"
+                       autocomplete="off"
                        value="{{ values.temperature or '' }}">
-                <button type="button" class="next-step" data-next="consciousness">Next &rarr;</button>
             </div>
 
             <div class="nhsuk-form-group">
@@ -617,20 +541,6 @@ HTML_FORM = '''
         </form>
 
         <script>
-            // Per-field 'Next' buttons: scroll to and focus the target field.
-            // Mobile-friendly — pops the correct keyboard via the input's inputmode.
-            document.querySelectorAll('.next-step').forEach(function(btn) {
-                btn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    var targetId = btn.getAttribute('data-next');
-                    var target = document.getElementById(targetId);
-                    if (!target) return;
-                    target.scrollIntoView({behavior: 'smooth', block: 'center'});
-                    // Slight delay so scroll completes before focus pops the keyboard.
-                    setTimeout(function() { target.focus(); }, 350);
-                });
-            });
-
             // Dismissible disclaimer — closed for the rest of the tab session.
             (function() {
                 var close = document.querySelector('.disclaimer__close');
@@ -727,16 +637,6 @@ HTML_RESULTS = '''
     </style>
 </head>
 <body>
-    <header class="nhsuk-header" role="banner">
-        <div class="nhsuk-header__inner">
-            <span class="nhsuk-header__service">NEWS2 Reference Calculator</span>
-        </div>
-    </header>
-
-    <nav class="top-nav" aria-label="Site navigation">
-        <a href="https://crox.io" rel="noopener">&larr; crox.io</a>
-    </nav>
-
     <main class="nhsuk-width-container" id="main-content">
         <div class="disclaimer" role="note" aria-labelledby="disclaimer-title">
             <button type="button" class="disclaimer__close" aria-label="Dismiss disclaimer">&times;</button>
@@ -1219,11 +1119,6 @@ HTML_ADMIN = '''
     </style>
 </head>
 <body>
-    <header class="nhsuk-header" role="banner">
-        <div class="nhsuk-header__inner">
-            <span class="nhsuk-header__service">NEWS2 admin</span>
-        </div>
-    </header>
     <main class="nhsuk-width-container" id="main-content">
         <h1 class="nhsuk-heading-xl">Analytics</h1>
 
