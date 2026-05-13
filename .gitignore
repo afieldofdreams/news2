@@ -3,3 +3,10 @@ __pycache__/*
 /env
 /flask_session
 __pycache__/
+analytics.db
+analytics.db-wal
+analytics.db-shm
+*.sqlite
+.env
+.env.local
+.env.*.local

@@ -1,12 +1,89 @@
 import os
+import secrets
+import sqlite3
+from contextlib import closing
+from functools import wraps
 
-from flask import Flask, render_template_string, request, redirect, url_for, session
+from flask import (
+    Flask,
+    Response,
+    abort,
+    redirect,
+    render_template_string,
+    request,
+    session,
+    url_for,
+)
 from flask_session import Session
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-only-change-me")
 app.config["SESSION_TYPE"] = "filesystem"
+app.config["ANALYTICS_DB_PATH"] = os.environ.get("ANALYTICS_DB_PATH", "analytics.db")
 Session(app)
+
+
+DONATE_URL = "https://checkout.revolut.com/pay/9a1c17c9-ce88-4fad-9ed9-174474c40582"
+CONTACT_URL = "https://crox.io"
+
+EVENT_VISIT = "visit"
+EVENT_SUBMIT = "submit"
+EVENT_RESULT = "result"
+EVENT_CLICK_DONATE = "click_donate"
+EVENT_CLICK_CONTACT = "click_contact"
+FUNNEL_STEPS = [
+    (EVENT_VISIT, "Visited"),
+    (EVENT_SUBMIT, "Entered data"),
+    (EVENT_RESULT, "Saw result"),
+    (EVENT_CLICK_DONATE, "Clicked donate"),
+    (EVENT_CLICK_CONTACT, "Clicked contact"),
+]
+
+
+def _db_connect():
+    conn = sqlite3.connect(app.config["ANALYTICS_DB_PATH"])
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    return conn
+
+
+def init_analytics_db():
+    with closing(_db_connect()) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                visitor_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_type ON events(event_type)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_visitor ON events(visitor_id)")
+        conn.commit()
+
+
+def _ensure_visitor_id():
+    visitor_id = session.get("visitor_id")
+    if not visitor_id:
+        visitor_id = secrets.token_urlsafe(16)
+        session["visitor_id"] = visitor_id
+    return visitor_id
+
+
+def track_event(event_type):
+    visitor_id = _ensure_visitor_id()
+    try:
+        with closing(_db_connect()) as conn:
+            conn.execute(
+                "INSERT INTO events (visitor_id, event_type) VALUES (?, ?)",
+                (visitor_id, event_type),
+            )
+            conn.commit()
+    except sqlite3.Error:
+        # Analytics failures must never break the user flow.
+        pass
 
 
 NHS_BASE_STYLES = '''
@@ -286,6 +363,86 @@ NHS_BASE_STYLES = '''
         font-size: 18px;
         margin: 0 0 8px;
     }
+    .about-me p { margin: 0 0 8px; }
+    .about-me p:last-child { margin-bottom: 0; }
+
+    /* Donate CTA */
+    .donate-cta {
+        text-align: center;
+        margin: 40px 0 8px;
+        padding: 24px 16px;
+        background: var(--nhsuk-grey-5);
+        border: 2px dashed var(--nhsuk-grey-3);
+    }
+    .donate-cta__lead {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0 0 12px;
+        color: var(--nhsuk-black);
+    }
+    .donate-cta__button {
+        display: inline-block;
+        font-family: inherit;
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1.2;
+        padding: 16px 28px 14px;
+        background: var(--nhsuk-warm-yellow);
+        color: var(--nhsuk-black);
+        border: 2px solid transparent;
+        border-bottom: 4px solid #b88500;
+        border-radius: 0;
+        text-decoration: none;
+        min-height: 48px;
+    }
+    .donate-cta__button:hover { background: #e6a619; }
+    .donate-cta__button:focus {
+        outline: 4px solid var(--nhsuk-focus);
+        outline-offset: 0;
+        background: var(--nhsuk-focus);
+        color: var(--nhsuk-black);
+        text-decoration: none;
+    }
+
+    /* Dismissible disclaimer — compact yellow caution */
+    .disclaimer {
+        position: relative;
+        background: #fff8e0;
+        border: 2px solid var(--nhsuk-warm-yellow);
+        border-left-width: 8px;
+        padding: 12px 44px 12px 16px;
+        margin: 0 0 24px;
+        font-size: 15px;
+        line-height: 1.4;
+    }
+    .disclaimer__title {
+        font-size: 16px;
+        font-weight: 700;
+        margin: 0 0 4px;
+        color: var(--nhsuk-black);
+    }
+    .disclaimer p { margin: 0; }
+    .disclaimer__close {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        width: 36px;
+        height: 36px;
+        background: transparent;
+        border: 2px solid transparent;
+        color: var(--nhsuk-black);
+        font-size: 24px;
+        line-height: 1;
+        cursor: pointer;
+        padding: 0;
+    }
+    .disclaimer__close:hover { background: var(--nhsuk-warm-yellow); }
+    .disclaimer__close:focus {
+        outline: 4px solid var(--nhsuk-focus);
+        outline-offset: 0;
+        background: var(--nhsuk-focus);
+    }
+    .disclaimer-dismissed .disclaimer { display: none; }
 
     .nhsuk-error-summary {
         border: 4px solid var(--nhsuk-warm-red);
@@ -329,6 +486,14 @@ HTML_FORM = '''
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NEWS2 Reference Calculator</title>
+    <script>
+        // Apply dismissed state before paint to avoid a flash of the warning.
+        try {
+            if (sessionStorage.getItem('news2DisclaimerDismissed') === '1') {
+                document.documentElement.className += ' disclaimer-dismissed';
+            }
+        } catch (e) {}
+    </script>
     <style>{{ base_styles|safe }}</style>
 </head>
 <body>
@@ -343,13 +508,10 @@ HTML_FORM = '''
     </nav>
 
     <main class="nhsuk-width-container" id="main-content">
-        <div class="nhsuk-error-summary" role="alert" aria-labelledby="disclaimer-title">
-            <h2 class="nhsuk-error-summary__title" id="disclaimer-title">Not an NHS service. Not a medical device.</h2>
-            <p>This is an independent educational reference, not affiliated with, endorsed by,
-            or connected to the NHS, the Royal College of Physicians, or any healthcare organisation.
-            It is not a medical device, has not been validated for clinical use, and must not be used
-            to inform patient care or clinical decision-making. Always use officially approved tools
-            and clinical judgement when treating patients.</p>
+        <div class="disclaimer" role="note" aria-labelledby="disclaimer-title">
+            <button type="button" class="disclaimer__close" aria-label="Dismiss disclaimer">&times;</button>
+            <p class="disclaimer__title" id="disclaimer-title">Not an NHS service. Not a medical device.</p>
+            <p>Independent educational reference only &mdash; not for clinical use.</p>
         </div>
 
         <h1 class="nhsuk-heading-xl">NEWS2 Reference Calculator</h1>
@@ -468,23 +630,31 @@ HTML_FORM = '''
                     setTimeout(function() { target.focus(); }, 350);
                 });
             });
-        </script>
 
-        <h2 class="nhsuk-heading-l">About this tool</h2>
-        <p>NEWS2 is an aggregate score derived from six routine physiological measurements,
-        described in the Royal College of Physicians' 2017 chart (linked above). This page
-        implements the published algorithm as a reference and learning aid only. It is not a
-        clinical tool and must not be used to inform care.</p>
-        <p>If you find this useful as a reference, contributions toward hosting costs are welcome &mdash;
-        <a href="https://checkout.revolut.com/pay/9a1c17c9-ce88-4fad-9ed9-174474c40582"
-           rel="noopener noreferrer" target="_blank">contribute via Revolut</a>.</p>
+            // Dismissible disclaimer — closed for the rest of the tab session.
+            (function() {
+                var close = document.querySelector('.disclaimer__close');
+                if (!close) return;
+                close.addEventListener('click', function() {
+                    try { sessionStorage.setItem('news2DisclaimerDismissed', '1'); } catch (e) {}
+                    document.documentElement.classList.add('disclaimer-dismissed');
+                });
+            })();
+        </script>
 
         <aside class="about-me" aria-label="About the author">
             <h3>About the author</h3>
-            <p>Built by Adam Field, a commercial pilot turned product builder, as a
-            personal reference and small experiment in clean clinical-style form design.
-            More of my work at <a href="https://crox.io" rel="noopener">crox.io</a>.</p>
+            <p>Built by Adam Field &mdash; commercial pilot turned product builder, shipping
+            small useful tools.</p>
+            <p>More of my work at <a href="{{ url_for('redirect_contact') }}" rel="noopener">crox.io</a>.</p>
         </aside>
+
+        <div class="donate-cta">
+            <p class="donate-cta__lead">Like this? Buy me a coffee.</p>
+            <a class="donate-cta__button"
+               href="{{ url_for('redirect_donate') }}"
+               rel="noopener noreferrer" target="_blank">&#9749; Buy me a coffee</a>
+        </div>
     </main>
 
     <footer class="nhsuk-footer">
@@ -505,6 +675,13 @@ HTML_RESULTS = '''
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NEWS2 Reference Calculator — result</title>
+    <script>
+        try {
+            if (sessionStorage.getItem('news2DisclaimerDismissed') === '1') {
+                document.documentElement.className += ' disclaimer-dismissed';
+            }
+        } catch (e) {}
+    </script>
     <style>
         {{ base_styles|safe }}
         .nhsuk-care-card {
@@ -561,12 +738,10 @@ HTML_RESULTS = '''
     </nav>
 
     <main class="nhsuk-width-container" id="main-content">
-        <div class="nhsuk-error-summary" role="alert" aria-labelledby="disclaimer-title">
-            <h2 class="nhsuk-error-summary__title" id="disclaimer-title">Not an NHS service. Not a medical device.</h2>
-            <p>This is an independent educational reference, not affiliated with, endorsed by,
-            or connected to the NHS, the Royal College of Physicians, or any healthcare organisation.
-            It is not a medical device, has not been validated for clinical use, and must not be used
-            to inform patient care or clinical decision-making.</p>
+        <div class="disclaimer" role="note" aria-labelledby="disclaimer-title">
+            <button type="button" class="disclaimer__close" aria-label="Dismiss disclaimer">&times;</button>
+            <p class="disclaimer__title" id="disclaimer-title">Not an NHS service. Not a medical device.</p>
+            <p>Independent educational reference only &mdash; not for clinical use.</p>
         </div>
 
         <h1 class="nhsuk-heading-xl">NEWS2 result</h1>
@@ -596,6 +771,24 @@ HTML_RESULTS = '''
         </table>
 
         <a class="nhsuk-button" href="{{ url_for('home') }}">Calculate another score</a>
+
+        <div class="donate-cta">
+            <p class="donate-cta__lead">Like this? Buy me a coffee.</p>
+            <a class="donate-cta__button"
+               href="{{ url_for('redirect_donate') }}"
+               rel="noopener noreferrer" target="_blank">&#9749; Buy me a coffee</a>
+        </div>
+
+        <script>
+            (function() {
+                var close = document.querySelector('.disclaimer__close');
+                if (!close) return;
+                close.addEventListener('click', function() {
+                    try { sessionStorage.setItem('news2DisclaimerDismissed', '1'); } catch (e) {}
+                    document.documentElement.classList.add('disclaimer-dismissed');
+                });
+            })();
+        </script>
     </main>
 
     <footer class="nhsuk-footer">
@@ -737,6 +930,7 @@ def parse_form(form):
 
 @app.route('/')
 def home():
+    track_event(EVENT_VISIT)
     return render_template_string(
         HTML_FORM,
         base_styles=NHS_BASE_STYLES,
@@ -747,6 +941,7 @@ def home():
 
 @app.route('/calculate', methods=['POST'])
 def calculate_news2():
+    track_event(EVENT_SUBMIT)
     values, errors = parse_form(request.form)
     if errors:
         return render_template_string(
@@ -826,12 +1021,14 @@ def determine_band(total_score, has_level_3):
         }
 
     # Single-parameter score of 3 triggers urgent review even at low aggregate.
+    # Wording mirrors RCP NEWS2 Chart 4 (clinical response) — the responder is a
+    # ward-based clinician competent in acute-illness assessment, not a nurse alone.
     if has_level_3 and total_score < 5:
         band = {
             'band_label': 'Low to medium risk (single parameter 3)',
             'band_color': '#ed8b00',
             'band_text_color': '#212b32',
-            'response': 'Urgent review by a registered nurse to decide whether escalation is needed. A single parameter scoring 3 indicates a localised concern even when the total NEWS2 is low.',
+            'response': 'Urgent review by a ward-based clinician (competent in the assessment of acute illness) to decide whether escalation of care is necessary. A single parameter scoring 3 indicates a localised concern even when the total NEWS2 is low.',
             'monitoring_time': 'Minimum 1-hourly observations.',
         }
     return band
@@ -842,11 +1039,266 @@ def results():
     result = session.get('result')
     if not result:
         return redirect(url_for('home'))
+    track_event(EVENT_RESULT)
     return render_template_string(
         HTML_RESULTS,
         base_styles=NHS_BASE_STYLES,
         **result,
     )
+
+
+@app.route('/go/donate')
+def redirect_donate():
+    track_event(EVENT_CLICK_DONATE)
+    return redirect(DONATE_URL, code=302)
+
+
+@app.route('/go/contact')
+def redirect_contact():
+    track_event(EVENT_CLICK_CONTACT)
+    return redirect(CONTACT_URL, code=302)
+
+
+# ---------- admin / analytics ----------
+
+def _check_admin_auth():
+    expected_user = os.environ.get("ADMIN_USER", "")
+    expected_pass = os.environ.get("ADMIN_PASS", "")
+    if not expected_user or not expected_pass:
+        return False
+    auth = request.authorization
+    if not auth or auth.username is None or auth.password is None:
+        return False
+    return (
+        secrets.compare_digest(auth.username, expected_user)
+        and secrets.compare_digest(auth.password, expected_pass)
+    )
+
+
+def require_admin(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if not _check_admin_auth():
+            return Response(
+                "Authentication required.",
+                401,
+                {"WWW-Authenticate": 'Basic realm="NEWS2 admin"'},
+            )
+        return view(*args, **kwargs)
+
+    return wrapper
+
+
+def compute_funnel():
+    counts = {step: 0 for step, _ in FUNNEL_STEPS}
+    try:
+        with closing(_db_connect()) as conn:
+            rows = conn.execute(
+                """
+                SELECT event_type, COUNT(DISTINCT visitor_id)
+                FROM events
+                GROUP BY event_type
+                """
+            ).fetchall()
+    except sqlite3.Error:
+        rows = []
+    for event_type, uniques in rows:
+        if event_type in counts:
+            counts[event_type] = uniques
+    visits = counts[EVENT_VISIT] or 0
+    funnel = []
+    for step, label in FUNNEL_STEPS:
+        uniques = counts.get(step, 0)
+        pct = (uniques / visits * 100) if visits else 0.0
+        funnel.append({"step": step, "label": label, "uniques": uniques, "pct": pct})
+    return funnel
+
+
+def compute_daily_stats(limit=30):
+    try:
+        with closing(_db_connect()) as conn:
+            rows = conn.execute(
+                """
+                SELECT DATE(created_at) AS day, event_type,
+                       COUNT(DISTINCT visitor_id) AS uniques
+                FROM events
+                GROUP BY day, event_type
+                ORDER BY day DESC
+                """
+            ).fetchall()
+    except sqlite3.Error:
+        rows = []
+    days = {}
+    for day, event_type, uniques in rows:
+        days.setdefault(day, {step: 0 for step, _ in FUNNEL_STEPS})
+        if event_type in days[day]:
+            days[day][event_type] = uniques
+    ordered = sorted(days.items(), reverse=True)[:limit]
+    return [{"day": day, **counts} for day, counts in ordered]
+
+
+def compute_totals():
+    try:
+        with closing(_db_connect()) as conn:
+            total_events = conn.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+            total_visitors = conn.execute(
+                "SELECT COUNT(DISTINCT visitor_id) FROM events"
+            ).fetchone()[0]
+    except sqlite3.Error:
+        return {"total_events": 0, "total_visitors": 0}
+    return {"total_events": total_events, "total_visitors": total_visitors}
+
+
+HTML_ADMIN = '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEWS2 admin</title>
+    <style>
+        {{ base_styles|safe }}
+        .admin-funnel { margin: 24px 0 32px; }
+        .admin-funnel__row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 8px;
+        }
+        .admin-funnel__label {
+            flex: 0 0 180px;
+            font-weight: 600;
+        }
+        .admin-funnel__bar {
+            flex: 1;
+            background: var(--nhsuk-grey-4);
+            height: 28px;
+            position: relative;
+            overflow: hidden;
+            min-width: 80px;
+        }
+        .admin-funnel__bar-fill {
+            background: var(--nhsuk-bright-blue);
+            height: 100%;
+        }
+        .admin-funnel__value {
+            flex: 0 0 160px;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+        .admin-totals {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin: 16px 0 24px;
+        }
+        .admin-totals__card {
+            flex: 1 1 200px;
+            background: var(--nhsuk-grey-5);
+            padding: 16px;
+            border-left: 4px solid var(--nhsuk-blue);
+        }
+        .admin-totals__value {
+            font-size: 28px;
+            font-weight: 700;
+            display: block;
+        }
+        table.admin-daily {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 15px;
+        }
+        table.admin-daily th, table.admin-daily td {
+            border-bottom: 1px solid var(--nhsuk-grey-4);
+            padding: 8px;
+            text-align: right;
+        }
+        table.admin-daily th:first-child,
+        table.admin-daily td:first-child { text-align: left; }
+        table.admin-daily th { background: var(--nhsuk-grey-5); }
+    </style>
+</head>
+<body>
+    <header class="nhsuk-header" role="banner">
+        <div class="nhsuk-header__inner">
+            <span class="nhsuk-header__service">NEWS2 admin</span>
+        </div>
+    </header>
+    <main class="nhsuk-width-container" id="main-content">
+        <h1 class="nhsuk-heading-xl">Analytics</h1>
+
+        <div class="admin-totals">
+            <div class="admin-totals__card">
+                <span class="admin-totals__value">{{ totals.total_visitors }}</span>
+                Unique visitors (all-time)
+            </div>
+            <div class="admin-totals__card">
+                <span class="admin-totals__value">{{ totals.total_events }}</span>
+                Total events
+            </div>
+        </div>
+
+        <h2 class="nhsuk-heading-l">Funnel (unique visitors)</h2>
+        <div class="admin-funnel">
+            {% set top = funnel[0].uniques if funnel and funnel[0].uniques else 1 %}
+            {% for row in funnel %}
+            <div class="admin-funnel__row">
+                <div class="admin-funnel__label">{{ row.label }}</div>
+                <div class="admin-funnel__bar">
+                    <div class="admin-funnel__bar-fill"
+                         style="width: {{ (row.uniques / top * 100)|round(1) }}%"></div>
+                </div>
+                <div class="admin-funnel__value">
+                    {{ row.uniques }} ({{ '%.1f'|format(row.pct) }}%)
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <h2 class="nhsuk-heading-l">By day (last 30 days)</h2>
+        {% if daily %}
+        <table class="admin-daily">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    {% for step, label in funnel_steps %}<th>{{ label }}</th>{% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in daily %}
+                <tr>
+                    <td>{{ row.day }}</td>
+                    {% for step, _ in funnel_steps %}<td>{{ row[step] }}</td>{% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No events recorded yet.</p>
+        {% endif %}
+    </main>
+</body>
+</html>
+'''
+
+
+@app.route('/admin')
+@require_admin
+def admin():
+    return render_template_string(
+        HTML_ADMIN,
+        base_styles=NHS_BASE_STYLES,
+        totals=compute_totals(),
+        funnel=compute_funnel(),
+        funnel_steps=FUNNEL_STEPS,
+        daily=compute_daily_stats(),
+    )
+
+
+# Initialise the analytics DB at import time so the table exists for the
+# first request (and for tests, which import this module).
+with app.app_context():
+    init_analytics_db()
 
 
 if __name__ == '__main__':

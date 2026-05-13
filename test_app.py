@@ -7,10 +7,15 @@ https://www.rcplondon.ac.uk/projects/outputs/national-early-warning-score-news-2
 Each parametrised case lists (input, expected_score) at the band edges
 so a regression in the thresholds will fail loudly.
 """
+import os
+import sqlite3
+from contextlib import closing
+
 import pytest
 
 from app import (
     app,
+    init_analytics_db,
     score_respiratory_rate,
     score_oxygen_saturation_scale_1,
     score_oxygen_saturation_scale_2,
@@ -139,8 +144,12 @@ def test_determine_band(total, has_3, expected_label):
 # ---------- integration: full-form scenarios via the HTTP layer ----------
 
 @pytest.fixture
-def client():
+def client(tmp_path):
     app.config["TESTING"] = True
+    # Isolate analytics DB per test so events don't leak between tests.
+    app.config["ANALYTICS_DB_PATH"] = str(tmp_path / "analytics.db")
+    with app.app_context():
+        init_analytics_db()
     return app.test_client()
 
 
@@ -160,11 +169,37 @@ def _form(**overrides):
 def test_get_form_loads(client):
     r = client.get("/")
     assert r.status_code == 200
-    assert b"NEWS2 score calculator" in r.data
+    assert b"NEWS2 Reference Calculator" in r.data
     assert b'method="POST"' in r.data
     # Numeric keypad on mobile
     assert b'inputmode="numeric"' in r.data
     assert b'inputmode="decimal"' in r.data
+
+
+def test_form_has_dismissible_disclaimer(client):
+    r = client.get("/")
+    assert b'class="disclaimer__close"' in r.data
+    assert b"news2DisclaimerDismissed" in r.data
+
+
+def test_form_has_donate_cta_and_contact(client):
+    r = client.get("/")
+    # Big buy-me-a-coffee CTA pointing at the tracking redirect, not the raw URL.
+    assert b"Buy me a coffee" in r.data
+    assert b"/go/donate" in r.data
+    # Contact link goes through tracking redirect too.
+    assert b"/go/contact" in r.data
+    # Raw Revolut URL must not appear directly — tracking would be bypassed.
+    assert b"checkout.revolut.com" not in r.data
+
+
+def test_single_parameter_three_response_text_matches_rcp(client):
+    # The single-parameter-3 escalation row in RCP NEWS2 Chart 4 reads
+    # "urgent review by a ward-based clinician"; making sure the page reflects
+    # that and doesn't downgrade to "registered nurse".
+    r = client.post("/calculate", data=_form(temperature="34.0"), follow_redirects=True)
+    assert r.status_code == 200
+    assert b"ward-based clinician" in r.data
 
 
 def test_empty_post_shows_error_summary(client):
@@ -235,3 +270,93 @@ def test_results_redirects_when_no_session(client):
     r = client.get("/results")
     assert r.status_code == 302
     assert "/" in r.headers["Location"]
+
+
+# ---------- analytics & admin ----------
+
+def _event_counts(client):
+    with closing(sqlite3.connect(app.config["ANALYTICS_DB_PATH"])) as conn:
+        rows = conn.execute(
+            "SELECT event_type, COUNT(*) FROM events GROUP BY event_type"
+        ).fetchall()
+    return dict(rows)
+
+
+def test_home_visit_is_tracked(client):
+    client.get("/")
+    counts = _event_counts(client)
+    assert counts.get("visit") == 1
+
+
+def test_full_funnel_tracked_for_single_visitor(client):
+    client.get("/")
+    client.post("/calculate", data=_form(), follow_redirects=False)
+    client.get("/results")
+    client.get("/go/donate")
+    client.get("/go/contact")
+    counts = _event_counts(client)
+    assert counts.get("visit") == 1
+    assert counts.get("submit") == 1
+    assert counts.get("result") == 1
+    assert counts.get("click_donate") == 1
+    assert counts.get("click_contact") == 1
+
+
+def test_donate_redirect_goes_to_revolut(client):
+    r = client.get("/go/donate")
+    assert r.status_code == 302
+    assert "checkout.revolut.com" in r.headers["Location"]
+
+
+def test_contact_redirect_goes_to_crox(client):
+    r = client.get("/go/contact")
+    assert r.status_code == 302
+    assert "crox.io" in r.headers["Location"]
+
+
+def test_admin_requires_auth(client, monkeypatch):
+    monkeypatch.setenv("ADMIN_USER", "adam")
+    monkeypatch.setenv("ADMIN_PASS", "hunter2")
+    r = client.get("/admin")
+    assert r.status_code == 401
+    assert "WWW-Authenticate" in r.headers
+    assert "Basic" in r.headers["WWW-Authenticate"]
+
+
+def test_admin_rejects_bad_credentials(client, monkeypatch):
+    import base64
+    monkeypatch.setenv("ADMIN_USER", "adam")
+    monkeypatch.setenv("ADMIN_PASS", "hunter2")
+    bad = base64.b64encode(b"adam:nope").decode()
+    r = client.get("/admin", headers={"Authorization": f"Basic {bad}"})
+    assert r.status_code == 401
+
+
+def test_admin_disabled_when_env_not_set(client, monkeypatch):
+    # Without ADMIN_USER/ADMIN_PASS, /admin must not be reachable even with creds.
+    monkeypatch.delenv("ADMIN_USER", raising=False)
+    monkeypatch.delenv("ADMIN_PASS", raising=False)
+    import base64
+    creds = base64.b64encode(b"anyone:anything").decode()
+    r = client.get("/admin", headers={"Authorization": f"Basic {creds}"})
+    assert r.status_code == 401
+
+
+def test_admin_shows_funnel(client, monkeypatch):
+    import base64
+    monkeypatch.setenv("ADMIN_USER", "adam")
+    monkeypatch.setenv("ADMIN_PASS", "hunter2")
+    # Generate a full funnel for one visitor.
+    client.get("/")
+    client.post("/calculate", data=_form())
+    client.get("/results")
+    client.get("/go/donate")
+
+    creds = base64.b64encode(b"adam:hunter2").decode()
+    r = client.get("/admin", headers={"Authorization": f"Basic {creds}"})
+    assert r.status_code == 200
+    assert b"Visited" in r.data
+    assert b"Entered data" in r.data
+    assert b"Saw result" in r.data
+    assert b"Clicked donate" in r.data
+    assert b"Funnel" in r.data
