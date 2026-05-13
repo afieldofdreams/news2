@@ -2,7 +2,7 @@
 
 Hey folks, this was a quick NEW2 Calculator that I created based on the guidance. You can access the tool [here](https://news-service.v6u9n385v4hnu.eu-west-2.cs.amazonlightsail.com/)
 
-Feedback to afield@jabs.ai.
+Feedback to adam@crox.io
 
 * https://www.england.nhs.uk/ourwork/clinical-policy/sepsis/nationalearlywarningscore/
 * https://www.nice.org.uk/advice/mib205/chapter/The-technology
