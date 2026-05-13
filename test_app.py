@@ -176,6 +176,33 @@ def test_get_form_loads(client):
     assert b'inputmode="decimal"' in r.data
 
 
+def test_form_has_pwa_head_tags(client):
+    # Manifest + apple-touch-icon + theme colour + SW registration must be in <head>
+    # so the page is installable as a PWA on Android and iOS.
+    r = client.get("/")
+    assert b'rel="manifest"' in r.data
+    assert b"/static/manifest.webmanifest" in r.data
+    assert b'rel="apple-touch-icon"' in r.data
+    assert b'name="theme-color"' in r.data
+    assert b'navigator.serviceWorker.register("/sw.js")' in r.data
+
+
+def test_manifest_served(client):
+    r = client.get("/static/manifest.webmanifest")
+    assert r.status_code == 200
+    body = r.get_json(force=True)
+    assert body["name"] == "NEWS2 Reference Calculator"
+    assert body["display"] == "standalone"
+    assert any(icon["sizes"] == "512x512" for icon in body["icons"])
+
+
+def test_service_worker_served_at_root(client):
+    # Must be served from the origin root so its scope covers the whole site.
+    r = client.get("/sw.js")
+    assert r.status_code == 200
+    assert "javascript" in r.headers["Content-Type"]
+
+
 def test_form_has_dismissible_disclaimer(client):
     r = client.get("/")
     assert b'class="disclaimer__close"' in r.data
