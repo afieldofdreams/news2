@@ -23,19 +23,19 @@ app.config["ANALYTICS_DB_PATH"] = os.environ.get("ANALYTICS_DB_PATH", "analytics
 Session(app)
 
 
-DONATE_URL = "https://checkout.revolut.com/pay/9a1c17c9-ce88-4fad-9ed9-174474c40582"
 CONTACT_URL = "https://crox.io"
+LINKEDIN_URL = "https://www.linkedin.com/in/afieldio"
 
 EVENT_VISIT = "visit"
 EVENT_SUBMIT = "submit"
 EVENT_RESULT = "result"
-EVENT_CLICK_DONATE = "click_donate"
+EVENT_CLICK_LINKEDIN = "click_linkedin"
 EVENT_CLICK_CONTACT = "click_contact"
 FUNNEL_STEPS = [
     (EVENT_VISIT, "Visited"),
     (EVENT_SUBMIT, "Entered data"),
     (EVENT_RESULT, "Saw result"),
-    (EVENT_CLICK_DONATE, "Clicked donate"),
+    (EVENT_CLICK_LINKEDIN, "Clicked LinkedIn"),
     (EVENT_CLICK_CONTACT, "Clicked contact"),
 ]
 
@@ -285,59 +285,43 @@ NHS_BASE_STYLES = '''
     }
     .nhsuk-button--secondary:hover { background: var(--nhsuk-grey-4); }
 
-    /* About-me block */
-    .about-me {
+    /* Author card */
+    .author-card {
         background: var(--nhsuk-grey-5);
         border-left: 4px solid var(--nhsuk-blue);
-        padding: 16px 20px;
-        margin: 32px 0;
+        padding: 16px 20px 20px;
+        margin: 32px 0 8px;
         font-size: 15px;
         line-height: 1.5;
     }
-    .about-me h3 {
+    .author-card h3 {
         font-size: 18px;
         margin: 0 0 8px;
     }
-    .about-me p { margin: 0 0 8px; }
-    .about-me p:last-child { margin-bottom: 0; }
-
-    /* Donate CTA */
-    .donate-cta {
-        text-align: center;
-        margin: 40px 0 8px;
-        padding: 24px 16px;
-        background: var(--nhsuk-grey-5);
-        border: 2px dashed var(--nhsuk-grey-3);
+    .author-card p { margin: 0 0 8px; }
+    .author-card__support {
+        margin-top: 16px;
     }
-    .donate-cta__lead {
-        font-size: 18px;
-        font-weight: 600;
-        margin: 0 0 12px;
-        color: var(--nhsuk-black);
+    /* Result actions row */
+    .result-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin: 24px 0 8px;
     }
-    .donate-cta__button {
+    .result-actions .nhsuk-button { margin: 0; }
+    .share-toast {
         display: inline-block;
-        font-family: inherit;
-        font-size: 20px;
-        font-weight: 700;
-        line-height: 1.2;
-        padding: 16px 28px 14px;
-        background: var(--nhsuk-warm-yellow);
+        margin-left: 4px;
+        padding: 6px 10px;
+        font-size: 14px;
         color: var(--nhsuk-black);
-        border: 2px solid transparent;
-        border-bottom: 4px solid #b88500;
-        border-radius: 0;
-        text-decoration: none;
-        min-height: 48px;
+        background: #d9f4e3;
+        border: 1px solid #007f3b;
+        opacity: 0;
+        transition: opacity 0.15s ease-in;
     }
-    .donate-cta__button:hover { background: #e6a619; }
-    .donate-cta__button:focus {
-        outline: 4px solid var(--nhsuk-focus);
-        outline-offset: 0;
-        background: var(--nhsuk-focus);
-        color: var(--nhsuk-black);
-        text-decoration: none;
-    }
+    .share-toast.is-visible { opacity: 1; }
 
     /* Dismissible disclaimer — compact yellow caution */
     .disclaimer {
@@ -552,19 +536,17 @@ HTML_FORM = '''
             })();
         </script>
 
-        <aside class="about-me" aria-label="About the author">
+        <aside class="author-card" aria-label="About the author">
             <h3>About the author</h3>
-            <p>Built by Adam Field &mdash; commercial pilot turned product builder, shipping
-            small useful tools.</p>
-            <p>More of my work at <a href="{{ url_for('redirect_contact') }}" rel="noopener">crox.io</a>.</p>
+            <p>Built by Adam Field &mdash; product builder shipping small useful tools.
+            More of my work at <a href="{{ url_for('redirect_contact') }}" rel="noopener">crox.io</a>.</p>
+            <p>Want to support me? Follow me on LinkedIn.</p>
+            <p class="author-card__support">
+                <a class="nhsuk-button nhsuk-button--secondary"
+                   href="{{ url_for('redirect_linkedin') }}"
+                   rel="noopener noreferrer" target="_blank">Follow on LinkedIn</a>
+            </p>
         </aside>
-
-        <div class="donate-cta">
-            <p class="donate-cta__lead">Like this? Buy me a coffee.</p>
-            <a class="donate-cta__button"
-               href="{{ url_for('redirect_donate') }}"
-               rel="noopener noreferrer" target="_blank">&#9749; Buy me a coffee</a>
-        </div>
     </main>
 
     <footer class="nhsuk-footer">
@@ -670,22 +652,68 @@ HTML_RESULTS = '''
             </tbody>
         </table>
 
-        <a class="nhsuk-button" href="{{ url_for('home') }}">Calculate another score</a>
-
-        <div class="donate-cta">
-            <p class="donate-cta__lead">Like this? Buy me a coffee.</p>
-            <a class="donate-cta__button"
-               href="{{ url_for('redirect_donate') }}"
-               rel="noopener noreferrer" target="_blank">&#9749; Buy me a coffee</a>
+        <div class="result-actions">
+            <a class="nhsuk-button" href="{{ url_for('home') }}">Calculate another score</a>
+            <button class="nhsuk-button nhsuk-button--secondary"
+                    type="button" id="share-button" hidden>Share result</button>
+            <span class="share-toast" id="share-toast" role="status" aria-live="polite"></span>
         </div>
+
+        <aside class="author-card" aria-label="About the author">
+            <h3>About the author</h3>
+            <p>Built by Adam Field &mdash; product builder shipping small useful tools.
+            More of my work at <a href="{{ url_for('redirect_contact') }}" rel="noopener">crox.io</a>.</p>
+            <p>Want to support me? Follow me on LinkedIn.</p>
+            <p class="author-card__support">
+                <a class="nhsuk-button nhsuk-button--secondary"
+                   href="{{ url_for('redirect_linkedin') }}"
+                   rel="noopener noreferrer" target="_blank">Follow on LinkedIn</a>
+            </p>
+        </aside>
 
         <script>
             (function() {
                 var close = document.querySelector('.disclaimer__close');
-                if (!close) return;
-                close.addEventListener('click', function() {
-                    try { sessionStorage.setItem('news2DisclaimerDismissed', '1'); } catch (e) {}
-                    document.documentElement.classList.add('disclaimer-dismissed');
+                if (close) {
+                    close.addEventListener('click', function() {
+                        try { sessionStorage.setItem('news2DisclaimerDismissed', '1'); } catch (e) {}
+                        document.documentElement.classList.add('disclaimer-dismissed');
+                    });
+                }
+
+                var btn = document.getElementById('share-button');
+                var toast = document.getElementById('share-toast');
+                if (!btn) return;
+                btn.hidden = false;
+
+                var url = window.location.href;
+                var shareText = {{ share_text|tojson }};
+
+                function showToast(msg) {
+                    if (!toast) return;
+                    toast.textContent = msg;
+                    toast.classList.add('is-visible');
+                    setTimeout(function() { toast.classList.remove('is-visible'); }, 2500);
+                }
+
+                btn.addEventListener('click', function() {
+                    if (navigator.share) {
+                        navigator.share({
+                            title: 'NEWS2 reference result',
+                            text: shareText,
+                            url: url
+                        }).catch(function() { /* user cancelled */ });
+                        return;
+                    }
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(url).then(function() {
+                            showToast('Link copied');
+                        }).catch(function() {
+                            showToast('Copy failed — long-press the URL bar');
+                        });
+                    } else {
+                        showToast('Copy the URL from your browser bar');
+                    }
                 });
             })();
         </script>
@@ -798,11 +826,12 @@ FIELD_SPECS = {
 }
 
 
-def parse_form(form):
+def parse_inputs(source):
+    """Parse NEWS2 inputs from a form or query-string source (anything with .get)."""
     values = {}
     errors = {}
     for name, spec in FIELD_SPECS.items():
-        raw = form.get(name, '').strip()
+        raw = source.get(name, '').strip()
         if raw == '':
             errors[name] = f"Enter a {spec['label']}"
             values[name] = ''
@@ -819,38 +848,17 @@ def parse_form(form):
             continue
         values[name] = v
 
-    values['supplementalOxygen'] = form.get('supplementalOxygen') == 'yes'
-    values['hypercapnic'] = form.get('hypercapnic') == 'yes'
-    consciousness = form.get('consciousness', 'alert')
+    values['supplementalOxygen'] = source.get('supplementalOxygen') == 'yes'
+    values['hypercapnic'] = source.get('hypercapnic') == 'yes'
+    consciousness = source.get('consciousness', 'alert')
     if consciousness not in {'alert', 'confusion', 'voice', 'pain', 'unresponsive'}:
         consciousness = 'alert'
     values['consciousness'] = consciousness
     return values, errors
 
 
-@app.route('/')
-def home():
-    track_event(EVENT_VISIT)
-    return render_template_string(
-        HTML_FORM,
-        base_styles=NHS_BASE_STYLES,
-        errors={},
-        values={'consciousness': 'alert'},
-    )
-
-
-@app.route('/calculate', methods=['POST'])
-def calculate_news2():
-    track_event(EVENT_SUBMIT)
-    values, errors = parse_form(request.form)
-    if errors:
-        return render_template_string(
-            HTML_FORM,
-            base_styles=NHS_BASE_STYLES,
-            errors=errors,
-            values=values,
-        ), 400
-
+def compute_result(values):
+    """Run the NEWS2 scoring on validated inputs and return the template kwargs."""
     on_oxygen = values['supplementalOxygen']
     hypercapnic = values['hypercapnic']
     spo2 = values['oxygenSaturation']
@@ -873,16 +881,53 @@ def calculate_news2():
     total_score = sum(scores.values())
     sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     has_level_3 = any(v == 3 for v in scores.values())
-
     band = determine_band(total_score, has_level_3)
-
-    session['result'] = {
+    return {
         'score': total_score,
         'sorted_scores': sorted_scores,
         'has_level_3': has_level_3,
         **band,
     }
-    return redirect(url_for('results'))
+
+
+def values_to_share_params(values):
+    """Serialise validated inputs into query-string args for a shareable /results URL."""
+    return {
+        'respiratoryRate': values['respiratoryRate'],
+        'oxygenSaturation': values['oxygenSaturation'],
+        'systolicBP': values['systolicBP'],
+        'pulseRate': values['pulseRate'],
+        'temperature': values['temperature'],
+        'supplementalOxygen': 'yes' if values['supplementalOxygen'] else 'no',
+        'hypercapnic': 'yes' if values['hypercapnic'] else 'no',
+        'consciousness': values['consciousness'],
+    }
+
+
+@app.route('/')
+def home():
+    track_event(EVENT_VISIT)
+    return render_template_string(
+        HTML_FORM,
+        base_styles=NHS_BASE_STYLES,
+        errors={},
+        values={'consciousness': 'alert'},
+    )
+
+
+@app.route('/calculate', methods=['POST'])
+def calculate_news2():
+    track_event(EVENT_SUBMIT)
+    values, errors = parse_inputs(request.form)
+    if errors:
+        return render_template_string(
+            HTML_FORM,
+            base_styles=NHS_BASE_STYLES,
+            errors=errors,
+            values=values,
+        ), 400
+
+    return redirect(url_for('results', **values_to_share_params(values)))
 
 
 def determine_band(total_score, has_level_3):
@@ -936,21 +981,30 @@ def determine_band(total_score, has_level_3):
 
 @app.route('/results')
 def results():
-    result = session.get('result')
-    if not result:
+    if not request.args:
         return redirect(url_for('home'))
+    values, errors = parse_inputs(request.args)
+    if errors:
+        return redirect(url_for('home'))
+
+    result = compute_result(values)
     track_event(EVENT_RESULT)
+    share_text = (
+        f"NEWS2 reference score {result['score']} ({result['band_label']}). "
+        f"For information only, not a clinical assessment."
+    )
     return render_template_string(
         HTML_RESULTS,
         base_styles=NHS_BASE_STYLES,
+        share_text=share_text,
         **result,
     )
 
 
-@app.route('/go/donate')
-def redirect_donate():
-    track_event(EVENT_CLICK_DONATE)
-    return redirect(DONATE_URL, code=302)
+@app.route('/go/linkedin')
+def redirect_linkedin():
+    track_event(EVENT_CLICK_LINKEDIN)
+    return redirect(LINKEDIN_URL, code=302)
 
 
 @app.route('/go/contact')

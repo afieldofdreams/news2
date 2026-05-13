@@ -182,15 +182,15 @@ def test_form_has_dismissible_disclaimer(client):
     assert b"news2DisclaimerDismissed" in r.data
 
 
-def test_form_has_donate_cta_and_contact(client):
+def test_form_has_linkedin_cta_and_contact(client):
     r = client.get("/")
-    # Big buy-me-a-coffee CTA pointing at the tracking redirect, not the raw URL.
-    assert b"Buy me a coffee" in r.data
-    assert b"/go/donate" in r.data
+    # Follow-on-LinkedIn CTA pointing at the tracking redirect, not the raw URL.
+    assert b"Follow on LinkedIn" in r.data
+    assert b"/go/linkedin" in r.data
     # Contact link goes through tracking redirect too.
     assert b"/go/contact" in r.data
-    # Raw Revolut URL must not appear directly — tracking would be bypassed.
-    assert b"checkout.revolut.com" not in r.data
+    # Raw LinkedIn URL must not appear directly — tracking would be bypassed.
+    assert b"linkedin.com/in/" not in r.data
 
 
 def test_single_parameter_three_response_text_matches_rcp(client):
@@ -266,10 +266,33 @@ def test_hypercapnic_on_oxygen_at_98_scores_high(client):
     assert b">5<" in r.data
 
 
-def test_results_redirects_when_no_session(client):
+def test_results_redirects_when_no_query_string(client):
     r = client.get("/results")
     assert r.status_code == 302
     assert "/" in r.headers["Location"]
+
+
+def test_results_renders_from_query_string(client):
+    # Shareable result URLs: a direct GET with full inputs renders the result page
+    # without needing a prior POST in the same session.
+    r = client.get(
+        "/results",
+        query_string=_form(
+            oxygenSaturation="98",
+            supplementalOxygen="yes",
+            hypercapnic="yes",
+        ),
+    )
+    assert r.status_code == 200
+    assert b"NEWS2 result" in r.data
+    assert b"Medium risk" in r.data
+    assert b">5<" in r.data
+
+
+def test_results_redirects_when_query_string_invalid(client):
+    # Tampered or malformed share URL — bounce back to home rather than 400.
+    r = client.get("/results", query_string={"respiratoryRate": "abc"})
+    assert r.status_code == 302
 
 
 # ---------- analytics & admin ----------
@@ -290,22 +313,22 @@ def test_home_visit_is_tracked(client):
 
 def test_full_funnel_tracked_for_single_visitor(client):
     client.get("/")
-    client.post("/calculate", data=_form(), follow_redirects=False)
-    client.get("/results")
-    client.get("/go/donate")
+    # follow_redirects=True chases /calculate -> /results?... so EVENT_RESULT fires.
+    client.post("/calculate", data=_form(), follow_redirects=True)
+    client.get("/go/linkedin")
     client.get("/go/contact")
     counts = _event_counts(client)
     assert counts.get("visit") == 1
     assert counts.get("submit") == 1
     assert counts.get("result") == 1
-    assert counts.get("click_donate") == 1
+    assert counts.get("click_linkedin") == 1
     assert counts.get("click_contact") == 1
 
 
-def test_donate_redirect_goes_to_revolut(client):
-    r = client.get("/go/donate")
+def test_linkedin_redirect_goes_to_linkedin(client):
+    r = client.get("/go/linkedin")
     assert r.status_code == 302
-    assert "checkout.revolut.com" in r.headers["Location"]
+    assert "linkedin.com/in/" in r.headers["Location"]
 
 
 def test_contact_redirect_goes_to_crox(client):
@@ -348,9 +371,8 @@ def test_admin_shows_funnel(client, monkeypatch):
     monkeypatch.setenv("ADMIN_PASS", "hunter2")
     # Generate a full funnel for one visitor.
     client.get("/")
-    client.post("/calculate", data=_form())
-    client.get("/results")
-    client.get("/go/donate")
+    client.post("/calculate", data=_form(), follow_redirects=True)
+    client.get("/go/linkedin")
 
     creds = base64.b64encode(b"adam:hunter2").decode()
     r = client.get("/admin", headers={"Authorization": f"Basic {creds}"})
@@ -358,5 +380,5 @@ def test_admin_shows_funnel(client, monkeypatch):
     assert b"Visited" in r.data
     assert b"Entered data" in r.data
     assert b"Saw result" in r.data
-    assert b"Clicked donate" in r.data
+    assert b"Clicked LinkedIn" in r.data
     assert b"Funnel" in r.data
