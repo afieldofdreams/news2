@@ -11,6 +11,7 @@ from flask import (
     redirect,
     render_template_string,
     request,
+    send_from_directory,
     session,
     url_for,
 )
@@ -398,6 +399,27 @@ NHS_BASE_STYLES = '''
 '''
 
 
+# Shared PWA <head> fragment: manifest link, theme colour, icons, and a
+# service-worker registration. Injected into both HTML_FORM and HTML_RESULTS
+# so the two pages stay consistent.
+PWA_HEAD = '''
+    <link rel="manifest" href="/static/manifest.webmanifest">
+    <meta name="theme-color" content="#0f5a64">
+    <link rel="icon" type="image/png" href="/static/icons/favicon.png">
+    <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="NEWS2">
+    <script>
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", function () {
+                navigator.serviceWorker.register("/sw.js").catch(function () {});
+            });
+        }
+    </script>
+'''
+
+
 HTML_FORM = '''
 <!DOCTYPE html>
 <html lang="en">
@@ -405,6 +427,7 @@ HTML_FORM = '''
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NEWS2 Reference Calculator</title>
+    {{ pwa_head|safe }}
     <script>
         // Apply dismissed state before paint to avoid a flash of the warning.
         try {
@@ -567,6 +590,7 @@ HTML_RESULTS = '''
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NEWS2 Reference Calculator — result</title>
+    {{ pwa_head|safe }}
     <script>
         try {
             if (sessionStorage.getItem('news2DisclaimerDismissed') === '1') {
@@ -910,6 +934,7 @@ def home():
     return render_template_string(
         HTML_FORM,
         base_styles=NHS_BASE_STYLES,
+        pwa_head=PWA_HEAD,
         errors={},
         values={'consciousness': 'alert'},
     )
@@ -923,6 +948,7 @@ def calculate_news2():
         return render_template_string(
             HTML_FORM,
             base_styles=NHS_BASE_STYLES,
+            pwa_head=PWA_HEAD,
             errors=errors,
             values=values,
         ), 400
@@ -996,9 +1022,18 @@ def results():
     return render_template_string(
         HTML_RESULTS,
         base_styles=NHS_BASE_STYLES,
+        pwa_head=PWA_HEAD,
         share_text=share_text,
         **result,
     )
+
+
+@app.route('/sw.js')
+def service_worker():
+    # Service worker must be served from the origin root for whole-site scope.
+    response = send_from_directory(app.static_folder, 'sw.js', mimetype='application/javascript')
+    response.headers['Service-Worker-Allowed'] = '/'
+    return response
 
 
 @app.route('/go/linkedin')
