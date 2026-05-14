@@ -303,14 +303,65 @@ NHS_BASE_STYLES = '''
     .author-card__support {
         margin-top: 16px;
     }
-    /* Result actions row */
+
+    /* "Add to home screen" install prompt */
+    .install-prompt {
+        background: #fff;
+        border: 2px solid var(--nhsuk-blue);
+        padding: 16px 20px;
+        margin: 24px 0 8px;
+        font-size: 15px;
+        line-height: 1.5;
+        position: relative;
+    }
+    .install-prompt h3 {
+        font-size: 16px;
+        margin: 0 0 8px;
+        color: var(--nhsuk-blue);
+    }
+    .install-prompt p { margin: 0 0 12px; }
+    .install-prompt__close {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        width: 36px;
+        height: 36px;
+        background: transparent;
+        border: 2px solid transparent;
+        font-size: 22px;
+        line-height: 1;
+        color: var(--nhsuk-grey-1);
+        cursor: pointer;
+    }
+    .install-prompt__close:focus {
+        outline: 4px solid var(--nhsuk-focus);
+        outline-offset: 0;
+    }
+    .install-prompt__ios-hint {
+        margin-top: 12px;
+        padding: 12px 14px;
+        background: var(--nhsuk-grey-5);
+        border-left: 4px solid var(--nhsuk-blue);
+        font-size: 14px;
+    }
+    .install-prompt__ios-hint svg {
+        vertical-align: -4px;
+        margin: 0 2px;
+    }
+
+    /* Result actions row — buttons share a row even on narrow screens. */
     .result-actions {
         display: flex;
         flex-wrap: wrap;
         gap: 12px;
         margin: 24px 0 8px;
     }
-    .result-actions .nhsuk-button { margin: 0; }
+    .result-actions .nhsuk-button {
+        margin: 0;
+        flex: 1 1 0;
+        min-width: 0;
+        text-align: center;
+    }
     .share-toast {
         display: inline-block;
         margin-left: 4px;
@@ -416,7 +467,96 @@ PWA_HEAD = '''
                 navigator.serviceWorker.register("/sw.js").catch(function () {});
             });
         }
+
+        // "Add to home screen" prompt — Android Chrome path + iOS Safari hint.
+        (function () {
+            var DISMISS_KEY = "news2InstallHidden";
+
+            function isStandalone() {
+                return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)
+                    || window.navigator.standalone === true;
+            }
+            function isIos() {
+                var ua = window.navigator.userAgent || "";
+                return /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+            }
+            function dismissed() {
+                try { return localStorage.getItem(DISMISS_KEY) === "1"; } catch (e) { return false; }
+            }
+            function rememberDismiss() {
+                try { localStorage.setItem(DISMISS_KEY, "1"); } catch (e) {}
+            }
+
+            document.addEventListener("DOMContentLoaded", function () {
+                if (isStandalone() || dismissed()) return;
+
+                var prompt = document.getElementById("install-prompt");
+                var btn = document.getElementById("install-prompt-button");
+                var close = document.getElementById("install-prompt-close");
+                var iosHint = document.getElementById("install-prompt-ios-hint");
+                if (!prompt || !btn || !close) return;
+
+                close.addEventListener("click", function () {
+                    prompt.hidden = true;
+                    rememberDismiss();
+                });
+
+                if (isIos()) {
+                    prompt.hidden = false;
+                    btn.addEventListener("click", function () {
+                        iosHint.hidden = !iosHint.hidden;
+                    });
+                    return;
+                }
+
+                // Android / desktop Chromium: wait for the install prompt event.
+                var deferred = null;
+                window.addEventListener("beforeinstallprompt", function (e) {
+                    e.preventDefault();
+                    deferred = e;
+                    prompt.hidden = false;
+                });
+                btn.addEventListener("click", function () {
+                    if (!deferred) return;
+                    deferred.prompt();
+                    deferred.userChoice.then(function () {
+                        deferred = null;
+                        prompt.hidden = true;
+                    });
+                });
+                window.addEventListener("appinstalled", function () {
+                    prompt.hidden = true;
+                    rememberDismiss();
+                });
+            });
+        })();
     </script>
+'''
+
+
+# Compact "Add to home screen" bar shown at the top of each public page.
+# Hidden by default; JS reveals it only when install is supported AND the
+# app is not already running standalone AND the user has not dismissed it.
+INSTALL_PROMPT_HTML = '''
+<section class="install-prompt" id="install-prompt" aria-label="Install this app" hidden>
+    <button type="button" class="install-prompt__close" id="install-prompt-close"
+            aria-label="Dismiss install prompt">&times;</button>
+    <h3>Save this calculator to your phone</h3>
+    <p>Add it to your home screen to launch it like an app.</p>
+    <p class="author-card__support">
+        <button type="button" class="nhsuk-button nhsuk-button--secondary" id="install-prompt-button">
+            Add to home screen
+        </button>
+    </p>
+    <div class="install-prompt__ios-hint" id="install-prompt-ios-hint" hidden>
+        On iPhone: tap the Share icon
+        <svg width="14" height="18" viewBox="0 0 14 18" fill="none"
+             stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+            <path d="M7 1v11M3 5l4-4 4 4M1 8v8h12V8"/>
+        </svg>
+        in Safari, then <strong>Add to Home Screen</strong>.
+    </div>
+</section>
 '''
 
 
@@ -440,6 +580,7 @@ HTML_FORM = '''
 </head>
 <body>
     <main class="nhsuk-width-container" id="main-content">
+        {{ install_prompt|safe }}
         <div class="disclaimer" role="note" aria-labelledby="disclaimer-title">
             <button type="button" class="disclaimer__close" aria-label="Dismiss disclaimer">&times;</button>
             <p class="disclaimer__title" id="disclaimer-title">Not an NHS service. Not a medical device.</p>
@@ -644,6 +785,7 @@ HTML_RESULTS = '''
 </head>
 <body>
     <main class="nhsuk-width-container" id="main-content">
+        {{ install_prompt|safe }}
         <div class="disclaimer" role="note" aria-labelledby="disclaimer-title">
             <button type="button" class="disclaimer__close" aria-label="Dismiss disclaimer">&times;</button>
             <p class="disclaimer__title" id="disclaimer-title">Not an NHS service. Not a medical device.</p>
@@ -935,6 +1077,7 @@ def home():
         HTML_FORM,
         base_styles=NHS_BASE_STYLES,
         pwa_head=PWA_HEAD,
+        install_prompt=INSTALL_PROMPT_HTML,
         errors={},
         values={'consciousness': 'alert'},
     )
@@ -949,6 +1092,7 @@ def calculate_news2():
             HTML_FORM,
             base_styles=NHS_BASE_STYLES,
             pwa_head=PWA_HEAD,
+            install_prompt=INSTALL_PROMPT_HTML,
             errors=errors,
             values=values,
         ), 400
@@ -1023,6 +1167,7 @@ def results():
         HTML_RESULTS,
         base_styles=NHS_BASE_STYLES,
         pwa_head=PWA_HEAD,
+        install_prompt=INSTALL_PROMPT_HTML,
         share_text=share_text,
         **result,
     )

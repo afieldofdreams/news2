@@ -203,6 +203,23 @@ def test_service_worker_served_at_root(client):
     assert "javascript" in r.headers["Content-Type"]
 
 
+def test_install_prompt_present_on_form_and_results(client):
+    # Install affordance must appear at the top of every public page.
+    # It's hidden by default; JS reveals it when install is supported.
+    form = client.get("/")
+    assert b'id="install-prompt"' in form.data
+    assert b"Add to home screen" in form.data
+    assert b'id="install-prompt-button"' in form.data
+    assert b'id="install-prompt-ios-hint"' in form.data
+
+    results = client.get(
+        "/results",
+        query_string=_form(oxygenSaturation="98", supplementalOxygen="yes", hypercapnic="yes"),
+    )
+    assert b'id="install-prompt"' in results.data
+    assert b"Add to home screen" in results.data
+
+
 def test_form_has_dismissible_disclaimer(client):
     r = client.get("/")
     assert b'class="disclaimer__close"' in r.data
