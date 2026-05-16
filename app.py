@@ -426,7 +426,6 @@ PWA_HEAD = '''
         capture_pageview: true,
         capture_pageleave: true,
       });
-      posthog.group('site', window.location.hostname);
     </script>
 '''
 
